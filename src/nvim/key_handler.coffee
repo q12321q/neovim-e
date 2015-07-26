@@ -103,7 +103,7 @@ NumPadToASCII =
   72: 56 # "8"
   73: 57 # "9"
 
-exports.keystrokeForKeyboardEvent = (event) ->
+exports.keystrokeForKeyboard_keydownEvent = (event) ->
   keyIdentifier = event.keyIdentifier
   if process.platform is 'linux' or process.platform is 'win32'
     keyIdentifier = translateKeyIdentifierForWindowsAndLinuxChromiumBug(keyIdentifier)
@@ -124,20 +124,22 @@ exports.keystrokeForKeyboardEvent = (event) ->
     else
       key = if keyIdentifier.length == 1 then keyIdentifier.toLowerCase() else keyIdentifier
 
+  keyToNVimKey(key, event.ctrlKey, event.altKey, event.shiftKey, event.metaKey)
+
+exports.keystrokeForKeyboard_keypressEvent = (event) ->
+  keyToNVimKey(String.fromCharCode(event.which))
+
+keyToNVimKey = (key, ctrlKey, altKey, shiftKey, metaKey) ->
   if not key?
     ''
   else
     keystroke = ''
-    keystroke += 'C-' if event.ctrlKey
-    keystroke += 'A-' if event.altKey
-    if event.shiftKey
+    keystroke += 'C-' if ctrlKey
+    keystroke += 'A-' if altKey
+    if shiftKey
       # Don't push 'shift' when modifying symbolic characters like '{'
       keystroke += 'S-' if key.length > 1
-      # Only upper case alphabetic characters like 'a'
-      key = key.toUpperCase() if /^[a-z]$/.test(key)
-    else
-      key = key.toLowerCase() if /^[A-Z]$/.test(key)
-    keystroke += 'D-' if event.metaKey
+    keystroke += 'D-' if metaKey
     key = "lt" if key == "<" and not keystroke.length
     keystroke += key
     if keystroke.length == 1 then keystroke else '<' + keystroke + '>'
@@ -170,10 +172,7 @@ keyFromCharCode = (charCode) ->
     when 13 then 'Enter'
     when 27 then 'Esc'
     when 32 then 'Space'
-    when 92 then 'Bslash'
-    when 124 then 'Bar'
     when 127 then 'Del'
-    else String.fromCharCode(charCode)
 
 isASCII = (charCode) ->
   0 <= charCode <= 127

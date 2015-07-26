@@ -6,7 +6,8 @@ shell = require 'shell'
 EventEmitter = require('events').EventEmitter
 remote = require 'remote'
 config = require './config'
-{keystrokeForKeyboardEvent} = require './key_handler'
+{keystrokeForKeyboard_keydownEvent} = require './key_handler'
+{keystrokeForKeyboard_keypressEvent} = require './key_handler'
 
 MOUSE_BUTTON_NAME = [ 'Left', 'Middle', 'Right' ]
 
@@ -122,7 +123,16 @@ class UI extends EventEmitter
       resumeBlink()
 
     document.addEventListener 'keydown', (e) =>
-      keystroke = keystrokeForKeyboardEvent(e)
+      keystroke = keystrokeForKeyboard_keydownEvent(e)
+      if keystroke
+        e.preventDefault()
+        @emit 'input', keystroke
+
+      if config.blink_cursor
+        pause_blink()
+
+    document.addEventListener 'keypress', (e) =>
+      keystroke = keystrokeForKeyboard_keypressEvent(e)
       @emit 'input', keystroke if keystroke
 
       if config.blink_cursor
