@@ -21,7 +21,91 @@ WindowsAndLinuxKeyIdentifierTranslations =
   'U+00A5': 'Alt'
   'Win': 'Meta'
 
-WindowsAndLinuxCharCodeTranslations =
+WindowsAndLinuxCharCodeTranslations_fr_FR =
+  48:
+    unshifted: 224
+    shifted: 48
+    alted: 64
+  49:
+    unshifted: 38
+    shifted: 49
+    alted: 185
+  50:
+    unshifted: 233
+    shifted: 50
+    alted: 126
+  51:
+    unshifted: 34
+    shifted: 51
+    alted: 35
+  52:
+    unshifted: 39
+    shifted: 52
+    alted: 123
+  53:
+    unshifted: 40
+    shifted: 53
+    alted: 91
+  54:
+    unshifted: 45
+    shifted: 54
+    alted: 124
+  55:
+    unshifted: 232
+    shifted: 55
+    alted: 96
+  56:
+    unshifted: 95
+    shifted: 56
+    alted: 92
+  57:
+    unshifted: 231
+    shifted: 57
+    alted: 94
+  186:
+    unshifted: 36
+    shifted: 163
+    alted: 164
+  187:
+    unshifted: 61
+    shifted: 43
+    alted: 125
+  188:
+    unshifted: 44
+    shifted: 63
+  190:
+    unshifted: 59
+    shifted: 46
+  191:
+    unshifted: 58
+    shifted: 47
+  192:
+    unshifted: 249
+    shifted: 37
+  219:
+    unshifted: 41
+    shifted: 176
+    alted: 93
+  220:
+    unshifted: 42
+    shifted: 181
+    alted: 124
+  221:
+    unshifted: 94
+    shifted: 168
+    accent: true
+  222:
+    unshifted: 178
+    shifted: 126
+    alted: 172
+  223:
+    unshifted: 33
+    shifted: 167
+  226:
+    unshifted: 60
+    shifted: 62
+
+WindowsAndLinuxCharCodeTranslations_US =
   48:
     shifted: 41    # ")"
     unshifted: 48  # "0"
@@ -104,6 +188,7 @@ NumPadToASCII =
   73: 57 # "9"
 
 exports.keystrokeForKeyboard_keydownEvent = (event) ->
+
   keyIdentifier = event.keyIdentifier
   if process.platform is 'linux' or process.platform is 'win32'
     keyIdentifier = translateKeyIdentifierForWindowsAndLinuxChromiumBug(keyIdentifier)
@@ -113,14 +198,16 @@ exports.keystrokeForKeyboard_keydownEvent = (event) ->
 
     if charCode?
       if process.platform is 'linux' or process.platform is 'win32'
-        charCode = translateCharCodeForWindowsAndLinuxChromiumBug(charCode, event.shiftKey)
+        charCode = translateCharCodeForWindowsAndLinuxChromiumBug(charCode, event.shiftKey, event.ctrlKey and event.altKey)
 
       if event.location is KeyboardEvent.DOM_KEY_LOCATION_NUMPAD
         # This is a numpad number
         charCode = numpadToASCII(charCode)
 
-      charCode = event.which if not isASCII(charCode) and isASCII(event.keyCode)
+      # charCode = event.which if not isASCII(charCode) and isASCII(event.keyCode)
       key = keyFromCharCode(charCode)
+      if !key and (event.ctrlKey or event.altKey or event.meta) and !(event.ctrlKey and event.altKey)
+        key = String.fromCharCode(charCode)
     else
       key = if keyIdentifier.length == 1 then keyIdentifier.toLowerCase() else keyIdentifier
 
@@ -155,15 +242,20 @@ charCodeFromKeyIdentifier = (keyIdentifier) ->
 translateKeyIdentifierForWindowsAndLinuxChromiumBug = (keyIdentifier) ->
   WindowsAndLinuxKeyIdentifierTranslations[keyIdentifier] ? keyIdentifier
 
-translateCharCodeForWindowsAndLinuxChromiumBug = (charCode, shift) ->
-  if translation = WindowsAndLinuxCharCodeTranslations[charCode]
-    if shift then translation.shifted else translation.unshifted
+translateCharCodeForWindowsAndLinuxChromiumBug = (charCode, shift, altGr) ->
+  # if translation = WindowsAndLinuxCharCodeTranslations[charCode]
+  if translation = WindowsAndLinuxCharCodeTranslations_fr_FR[charCode]
+    if translation.accent then -1
+    else if shift then translation.shifted
+    else if altGr then translation.alted
+    else translation.unshifted
   else
     charCode
 
 keyFromCharCode = (charCode) ->
   # See :help key-notation
   switch charCode
+    when -1 then ''
     when 0 then 'Nul'
     when 8 then 'BS'
     when 9 then 'Tab'
@@ -172,7 +264,10 @@ keyFromCharCode = (charCode) ->
     when 13 then 'Enter'
     when 27 then 'Esc'
     when 32 then 'Space'
+    # when 92 then 'Bslash'
+    # when 124 then 'Bar'
     when 127 then 'Del'
+    # else String.fromCharCode(charCode)
 
 isASCII = (charCode) ->
   0 <= charCode <= 127

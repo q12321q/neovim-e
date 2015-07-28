@@ -124,6 +124,7 @@ class UI extends EventEmitter
 
     document.addEventListener 'keydown', (e) =>
       keystroke = keystrokeForKeyboard_keydownEvent(e)
+      console.log('keydown: ' + e.which+ ' '+ keystroke)
       if keystroke
         e.preventDefault()
         @emit 'input', keystroke
@@ -133,6 +134,7 @@ class UI extends EventEmitter
 
     document.addEventListener 'keypress', (e) =>
       keystroke = keystrokeForKeyboard_keypressEvent(e)
+      console.log('keypress: ' + keystroke)
       @emit 'input', keystroke if keystroke
 
       if config.blink_cursor
