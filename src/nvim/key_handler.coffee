@@ -194,44 +194,73 @@ exports.keystrokeForKeyboard_keydownEvent = (event) ->
     keyIdentifier = translateKeyIdentifierForWindowsAndLinuxChromiumBug(keyIdentifier)
 
   unless KeyboardEventModifiers.has(keyIdentifier)
-    charCode = charCodeFromKeyIdentifier(keyIdentifier)
+    keyCode = keyCodeFromKeyIdentifier(keyIdentifier)
 
-    if charCode?
-      if process.platform is 'linux' or process.platform is 'win32'
-        charCode = translateCharCodeForWindowsAndLinuxChromiumBug(charCode, event.shiftKey, event.ctrlKey and event.altKey)
+    shiftKey = event.shiftKey
+    ctrlKey = event.ctrlKey
+    altKey = event.altKey
+    altGrKey = event.ctrlKey and event.altKey
+    metaKey = event.metaKey
 
-      if event.location is KeyboardEvent.DOM_KEY_LOCATION_NUMPAD
-        # This is a numpad number
-        charCode = numpadToASCII(charCode)
+    if keyCode?
+      result = charCodeFromKeyCode(keyCode, event.location, shiftKey, altKey, altGrKey)
 
-      # charCode = event.which if not isASCII(charCode) and isASCII(event.keyCode)
-      key = keyFromCharCode(charCode)
-      if !key and (event.ctrlKey or event.altKey or event.meta) and !(event.ctrlKey and event.altKey)
-        key = String.fromCharCode(charCode)
+      if result.shifted
+        shiftKey = false
+      if result.alted
+        ctrlKey = false
+        altKey = false
+        metaKey = false
+
+      key = ''
+      if !result.dead
+        key = specialKeyFromCharCode(result.charCode, event.location)
+
+      if !key and !result.dead and (ctrlKey or altKey or metaKey or event.location is KeyboardEvent.DOM_KEY_LOCATION_NUMPAD)
+        key = String.fromCharCode(result.charCode)
+        if /[A-Z]/.test(key)
+          key = key.toLowerCase()
     else
+      # Not a character but a special key
       key = if keyIdentifier.length == 1 then keyIdentifier.toLowerCase() else keyIdentifier
 
-  keyToNVimKey(key, event.ctrlKey, event.altKey, event.shiftKey, event.metaKey)
+    if key?
+      nvimKeyFromKey(key, event.location, ctrlKey, altKey, shiftKey, metaKey)
 
 exports.keystrokeForKeyboard_keypressEvent = (event) ->
-  keyToNVimKey(String.fromCharCode(event.which))
+  nvimKeyFromKey(String.fromCharCode(event.which), event.location)
 
-keyToNVimKey = (key, ctrlKey, altKey, shiftKey, metaKey) ->
+# Convert key to nvim format
+nvimKeyFromKey = (key, location, ctrlKey, altKey, shiftKey, metaKey) ->
   if not key?
     ''
   else
+    #help key-notation
+    switch key
+      when ' ' then key = 'Space'
+      when '<' then key = 'lt'
+      when '\\' then key = 'Bslash'
+      when '|' then key = 'Bar'
+    if location is KeyboardEvent.DOM_KEY_LOCATION_NUMPAD
+      switch key
+        when '+' then key = 'Plus'
+        when '-' then key = 'Minus'
+        when '*' then key = 'Multiply'
+        when '/' then key = 'Divide'
+        when '.' then key = 'Point'
+      key = 'k' + key
+
     keystroke = ''
     keystroke += 'C-' if ctrlKey
     keystroke += 'A-' if altKey
-    if shiftKey
-      # Don't push 'shift' when modifying symbolic characters like '{'
-      keystroke += 'S-' if key.length > 1
+    keystroke += 'S-' if shiftKey
     keystroke += 'D-' if metaKey
-    key = "lt" if key == "<" and not keystroke.length
+
     keystroke += key
+
     if keystroke.length == 1 then keystroke else '<' + keystroke + '>'
 
-charCodeFromKeyIdentifier = (keyIdentifier) ->
+keyCodeFromKeyIdentifier = (keyIdentifier) ->
   parseInt(keyIdentifier[2..], 16) if keyIdentifier.indexOf('U+') is 0
 
 # Chromium includes incorrect keyIdentifier values on keypress events for
@@ -242,20 +271,42 @@ charCodeFromKeyIdentifier = (keyIdentifier) ->
 translateKeyIdentifierForWindowsAndLinuxChromiumBug = (keyIdentifier) ->
   WindowsAndLinuxKeyIdentifierTranslations[keyIdentifier] ? keyIdentifier
 
-translateCharCodeForWindowsAndLinuxChromiumBug = (charCode, shift, altGr) ->
-  # if translation = WindowsAndLinuxCharCodeTranslations[charCode]
-  if translation = WindowsAndLinuxCharCodeTranslations_fr_FR[charCode]
-    if translation.accent then -1
-    else if shift then translation.shifted
-    else if altGr then translation.alted
-    else translation.unshifted
-  else
-    charCode
+# Try to return the best charCode from a keyCode
+# keycode: key code from the keydown event
+# location: location from the keydown event (ie: NUMPAD)
+# shift: has the event the shift modification
+# alt: has the event the alt modification
+# altGr: has the event the altGr modification
+charCodeFromKeyCode = (keyCode, location, shift, alt, altGr) ->
+  result =
+    charCode: keyCode,
+    shifted: false,
+    alted: false,
+    dead: false
 
-keyFromCharCode = (charCode) ->
-  # See :help key-notation
+  if location is KeyboardEvent.DOM_KEY_LOCATION_NUMPAD
+    result.charCode = numpadToASCII(keyCode)
+  else if process.platform is 'linux' and process.platform is 'win32' and
+          translation = WindowsAndLinuxCharCodeTranslations_fr_FR[keyCode]
+    if shift and translation.shifted
+      result.charCode = translation.shifted
+      result.shifted = true
+    else if altGr and translation.alted
+      result.charCode = translation.alted
+      result.alted = true
+    else
+      result.charCode = translation.unshifted
+
+  return result
+
+haveAltedChar = (keyCode) ->
+  if translation = WindowsAndLinuxCharCodeTranslations_fr_FR[keyCode]
+    return !translation.alted
+  
+
+# Return key from charCode only for special keys ie non printable character
+specialKeyFromCharCode = (charCode) ->
   switch charCode
-    when -1 then ''
     when 0 then 'Nul'
     when 8 then 'BS'
     when 9 then 'Tab'
@@ -263,11 +314,7 @@ keyFromCharCode = (charCode) ->
     when 12 then 'FF'
     when 13 then 'Enter'
     when 27 then 'Esc'
-    when 32 then 'Space'
-    # when 92 then 'Bslash'
-    # when 124 then 'Bar'
     when 127 then 'Del'
-    # else String.fromCharCode(charCode)
 
 isASCII = (charCode) ->
   0 <= charCode <= 127

@@ -124,8 +124,8 @@ class UI extends EventEmitter
 
     document.addEventListener 'keydown', (e) =>
       keystroke = keystrokeForKeyboard_keydownEvent(e)
-      console.log('keydown: ' + e.which+ ' '+ keystroke)
       if keystroke
+        console.log('keydown: ' + e.which+ ' '+ keystroke)
         e.preventDefault()
         @emit 'input', keystroke
 
